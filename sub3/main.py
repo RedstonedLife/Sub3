@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import signal
+import os
 from typing import Optional, Union
 from platform import python_version
 import aiohttp
@@ -61,10 +62,20 @@ class Sub3:
     def start(self, timeout=60):
         loop = asyncio.new_event_loop()
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
-        for s in signals:
-            loop.add_signal_handler(
-                s, lambda s=s: loop.create_task(shutdown(s, loop, self.log))
-            )
+        
+        # Check for the platform and handle accordingly
+        if os.name != 'nt':  # Not Windows
+            for s in signals:
+                loop.add_signal_handler(
+                    s, lambda s=s: loop.create_task(shutdown(s, loop, self.log))
+                )
+        else:  # For Windows
+            # We handle the shutdown manually for Windows
+            def handle_signal(*args):
+                loop.create_task(shutdown(signal.SIGINT, loop, self.log))
+
+            signal.signal(signal.SIGINT, handle_signal)
+        
         try:
             loop.run_until_complete(self._start(timeout))
         finally:
